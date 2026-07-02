@@ -18,6 +18,10 @@ Docs/**
 .DS_Store
 Thumbs.db
 
+# Test Files
+**/src/test/
+**/test/
+
 # Backend Build & Output
 target/
 *.jar
