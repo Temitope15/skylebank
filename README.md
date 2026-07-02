@@ -11,9 +11,36 @@ Enable users to perform financial operations securely and effortlessly while red
 * **Infrastructure:** Docker Compose, multi-stage Dockerfiles.
 
 ## Project Structure
-* `/skylebank-backend`: Core API built as a modular monolith.
+* `/skylebank-backend`: Core API built as a monolith.
 * `/skylebank-frontend`: Responsive mobile-first React client application.
-* `/Docs`: In-depth architecture specification documents (local only).
 
-## Local Development Quickstart
-Refer to the untracked `SETUP.md` file in this directory for detailed instructions on launching development containers, initializing local database schemas, configuring active profiles, and running the development servers.
+## Getting Started
+
+### Running the Backend (Automated)
+From the root directory, run the helper script:
+```bash
+./run-backend.sh
+```
+This script will automatically:
+1. Spin up Postgres, Redis, and MailHog containers via Docker Compose.
+2. Prompt you to select a Spring profile (`dev` or `prod`).
+3. Compile and boot the backend using a Dockerized Java 21 environment.
+
+To run it directly without a prompt, pass the profile name as an argument:
+```bash
+./run-backend.sh dev
+# or
+./run-backend.sh prod
+```
+
+### Running the Frontend
+1. Navigate to the frontend directory:
+   ```bash
+   cd skylebank-frontend
+   ```
+2. Start the Vite dev server:
+   ```bash
+   npm run dev
+   ```
+
+

@@ -1,3 +1,23 @@
+/**
+ * File: DashboardLayout.tsx
+ *
+ * Purpose:
+ * Renders the wrapper layout for logged-in user dashboard screens.
+ *
+ * Responsibilities:
+ * * Render sidebar navigation links for desktop screen sizes
+ * * Render responsive top header and thumb-friendly navigation bar for mobile devices
+ * * Display user profile initials and trigger session logout actions
+ *
+ * Why this file exists:
+ * To provide a consistent, responsive navigation wrapper around authenticated pages.
+ *
+ * Usage Flow:
+ * Render -> Fetch user profile from useAuthStore -> render welcome banner -> Render Outlet child
+ *
+ * Design Decisions:
+ * * Layout Grid pattern with sidebar + main content viewport
+ */
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
@@ -12,6 +32,8 @@ import {
   Menu, 
   X 
 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { authService } from '../../services/authService';
 
 /**
  * Layout for authenticated dashboard pages, containing desktop sidebar, mobile header,
@@ -19,7 +41,9 @@ import {
  */
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
 
   const navigation = [
     { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
@@ -30,10 +54,17 @@ export default function DashboardLayout() {
     { name: 'Security', to: '/security', icon: Shield },
   ];
 
-  const handleLogout = () => {
-    // In later milestones, this will trigger auth store logout
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      navigate('/login');
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
   };
+
+  const userInitial = user?.firstName?.charAt(0).toUpperCase() || 'U';
+  const welcomeName = user?.firstName ? `Welcome Back, ${user.firstName}` : 'Welcome Back';
 
   return (
     <div className="flex h-screen bg-neutral-light overflow-hidden">
@@ -64,7 +95,7 @@ export default function DashboardLayout() {
         </nav>
         <div className="p-4 border-t border-accent-light">
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)}
             className="flex items-center space-x-3 w-full px-4 py-3 rounded-btn text-sm font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
           >
             <LogOut className="h-5 w-5" />
@@ -90,7 +121,7 @@ export default function DashboardLayout() {
           </div>
 
           <div className="hidden lg:block">
-            <h1 className="text-lg font-semibold text-text-primary">Welcome Back</h1>
+            <h1 className="text-lg font-semibold text-text-primary">{welcomeName}</h1>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -99,7 +130,7 @@ export default function DashboardLayout() {
               <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full"></span>
             </button>
             <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center text-white font-semibold shadow-sm">
-              U
+              {userInitial}
             </div>
           </div>
         </header>
@@ -170,7 +201,7 @@ export default function DashboardLayout() {
             </nav>
             <div className="p-4 border-t border-accent-light">
               <button
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 className="flex items-center space-x-3 w-full px-4 py-3 rounded-btn text-sm font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
               >
                 <LogOut className="h-5 w-5" />
@@ -178,6 +209,36 @@ export default function DashboardLayout() {
               </button>
             </div>
           </aside>
+        </div>
+      )}
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-accent/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
+          <div className="bg-white rounded-card max-w-sm w-full p-6 shadow-2xl border border-neutral-border animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-red-50 border border-red-100 text-red-600 mx-auto mb-4">
+              <LogOut className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-bold text-accent text-center mb-2 font-heading">
+              Confirm Logout
+            </h3>
+            <p className="text-text-secondary text-sm text-center mb-6">
+              Are you sure you want to end your active session and log out of SkyleBank?
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 py-2 px-4 border border-neutral-border hover:bg-neutral-light text-text-primary font-semibold rounded-btn transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-btn transition-colors text-sm shadow-md"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
