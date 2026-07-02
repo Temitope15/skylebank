@@ -1,10 +1,13 @@
-# Security & Documentation Policy
-# Ignore all markdown files except the official README.md
+# Ignore all markdown files except the official README.md and SETUP.md
 *.md
 !README.md
+!SETUP.md
+!setup.md
 
-# Ignore the entire Docs directory containing plans and audits
-Docs/
+# Ignore the entire Docs directory containing plans and audits, except SETUP.md
+Docs/**
+!Docs/SETUP.md
+!Docs/setup.md
 
 # IDE and System Files
 .idea/
