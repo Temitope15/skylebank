@@ -67,6 +67,29 @@ if [ ! -f .env ]; then
     fi
 fi
 
+# Ensure port 8080 is free to prevent startup collisions
+echo "Checking if port 8080 is occupied..."
+# Stop any running docker containers running maven/java on host network
+RUNNING_CONTAINERS=$(docker ps -q || true)
+if [ -n "$RUNNING_CONTAINERS" ]; then
+    for CONTAINER in $RUNNING_CONTAINERS; do
+        if docker top "$CONTAINER" 2>/dev/null | grep -E "mvn|java|spring-boot" > /dev/null; then
+            CONTAINER_NAME=$(docker ps --filter "id=$CONTAINER" --format "{{.Names}}")
+            echo "Stopping conflicting container: $CONTAINER_NAME ($CONTAINER)..."
+            docker stop "$CONTAINER" &>/dev/null || true
+        fi
+    done
+fi
+
+# Clean up any remaining native processes on port 8080
+if command -v lsof &> /dev/null; then
+    PIDS=$(lsof -t -i :8080 || true)
+    if [ -n "$PIDS" ]; then
+        echo "Force killing remaining process(es) on port 8080: $PIDS"
+        kill -9 $PIDS || true
+    fi
+fi
+
 # Run the backend using the maven Docker container (Java 21)
 echo "Booting the Spring Boot application under '$PROFILE' profile..."
 docker run --env-file .env -it --rm --network="host" \

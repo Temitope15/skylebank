@@ -32,6 +32,10 @@ import Register from '../pages/auth/Register';
 import ForgotPassword from '../pages/auth/ForgotPassword';
 import ResetPassword from '../pages/auth/ResetPassword';
 
+// Import Dashboard screens
+import Dashboard from '../pages/dashboard/Dashboard';
+import Wallet from '../pages/dashboard/Wallet';
+
 // ==========================================
 // Route Guard Components
 // ==========================================
@@ -55,24 +59,7 @@ const Landing = () => (
   </div>
 );
 
-// Protected placeholders
-const Dashboard = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold font-heading">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-36 flex items-center justify-center text-gray-400">Balance Widget</div>
-      <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-36 flex items-center justify-center text-gray-400">Quick Actions</div>
-      <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-36 flex items-center justify-center text-gray-400">Insights</div>
-    </div>
-  </div>
-);
-
-const Wallet = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold font-heading">My Wallet</h2>
-    <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-64 flex items-center justify-center text-gray-400">Wallet Management UI</div>
-  </div>
-);
+// Placeholders for pending screens
 
 const Transfer = () => (
   <div className="space-y-6">
