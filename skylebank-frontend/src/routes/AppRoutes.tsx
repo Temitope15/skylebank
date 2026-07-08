@@ -35,19 +35,46 @@ import ResetPassword from '../pages/auth/ResetPassword';
 // Import Dashboard screens
 import Dashboard from '../pages/dashboard/Dashboard';
 import Wallet from '../pages/dashboard/Wallet';
+import Transfer from '../pages/dashboard/Transfer';
+
+import AdminDashboard from '../pages/admin/AdminDashboard';
 
 // ==========================================
 // Route Guard Components
 // ==========================================
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function UserRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  const user = useAuthStore((state) => state.user);
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN') return <Navigate to="/admin/dashboard" replace />;
+  
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'ADMIN' && user?.role !== 'ROLE_ADMIN') return <Navigate to="/dashboard" replace />;
+  
+  return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />;
+  const user = useAuthStore((state) => state.user);
+  
+  if (!isAuthenticated) return <>{children}</>;
+  
+  return (user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN') ? (
+    <Navigate to="/admin/dashboard" replace />
+  ) : (
+    <Navigate to="/dashboard" replace />
+  );
 }
+
 
 // ==========================================
 // Placeholder Screens for Routing Shell
@@ -60,13 +87,6 @@ const Landing = () => (
 );
 
 // Placeholders for pending screens
-
-const Transfer = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold font-heading">Send Money</h2>
-    <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-64 flex items-center justify-center text-gray-400">Transfer Form Interface</div>
-  </div>
-);
 
 const Transactions = () => (
   <div className="space-y-6">
@@ -162,9 +182,9 @@ export default function AppRoutes() {
         {/* Protected Customer Routes Shell */}
         <Route
           element={
-            <ProtectedRoute>
+            <UserRoute>
               <DashboardLayout />
-            </ProtectedRoute>
+            </UserRoute>
           }
         >
           <Route path="/dashboard" element={<Dashboard />} />
@@ -174,6 +194,18 @@ export default function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/security" element={<Security />} />
         </Route>
+
+        {/* Protected Admin Routes Shell */}
+        <Route
+          element={
+            <AdminRoute>
+              <DashboardLayout />
+            </AdminRoute>
+          }
+        >
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        </Route>
+
 
         {/* Catch-all Routing */}
         <Route path="/404" element={<NotFound />} />

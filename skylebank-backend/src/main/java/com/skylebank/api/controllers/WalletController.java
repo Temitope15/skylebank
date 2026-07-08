@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
@@ -43,5 +44,15 @@ public class WalletController {
         log.info("REST request to get wallet balance for user: {}", email);
         Map<String, Object> balanceDetails = walletService.getWalletBalance(email);
         return ResponseEntity.ok(balanceDetails);
+    }
+
+    /**
+     * Endpoint to lookup recipient details by account number.
+     */
+    @GetMapping("/lookup")
+    public ResponseEntity<com.skylebank.api.dto.RecipientLookupResponse> lookupRecipient(@RequestParam String accountNumber) {
+        log.info("REST request to lookup recipient for account number: {}", accountNumber);
+        com.skylebank.api.dto.RecipientLookupResponse response = walletService.lookupRecipient(accountNumber);
+        return ResponseEntity.ok(response);
     }
 }

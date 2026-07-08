@@ -56,8 +56,12 @@ export default function Login() {
     setIsLoading(true);
     setError(null);
     try {
-      await authService.login(data);
-      navigate('/dashboard');
+      const user = await authService.login(data);
+      if (user.role === 'ADMIN' || user.role === 'ROLE_ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(
         err.response?.data?.message || 
@@ -68,6 +72,7 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="w-full max-w-md px-6 py-8 bg-white border border-neutral-border rounded-card shadow-lg sm:px-10">

@@ -13,3 +13,36 @@
     @apply font-heading font-semibold text-accent;
   }
 }
+
+@media print {
+  /* Hide standard layouts and sidebar */
+  aside, header, nav, footer, button, .print\:hidden {
+    display: none !important;
+  }
+  
+  /* Reset background and layout wrappers for print */
+  body, html, main, #root {
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Expand receipt to take up readable print page area */
+  .max-w-md {
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  /* Remove screen shadows/borders on paper */
+  .shadow-lg, .shadow-md, .shadow-sm {
+    box-shadow: none !important;
+  }
+  .border, .border-neutral-border {
+    border: 1px solid #e5e5e5 !important;
+  }
+}

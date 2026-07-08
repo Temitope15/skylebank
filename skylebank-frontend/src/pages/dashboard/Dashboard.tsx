@@ -26,19 +26,36 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    async function fetchWallet() {
+    let active = true;
+    async function fetchWallet(showLoading = false) {
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         const data = await walletService.getWalletDetails();
-        setWallet(data);
+        if (active) {
+          setWallet(data);
+        }
       } catch (err: any) {
         console.error(err);
-        setError(err.response?.data?.message || 'Failed to load wallet details.');
+        if (showLoading && active) {
+          setError(err.response?.data?.message || 'Failed to load wallet details.');
+        }
       } finally {
-        setLoading(false);
+        if (showLoading && active) {
+          setLoading(false);
+        }
       }
     }
-    fetchWallet();
+
+    fetchWallet(true);
+
+    const interval = setInterval(() => {
+      fetchWallet(false);
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleCopyNuban = () => {

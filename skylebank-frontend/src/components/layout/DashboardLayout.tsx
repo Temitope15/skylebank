@@ -45,14 +45,20 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
 
-  const navigation = [
-    { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
-    { name: 'Wallet', to: '/wallet', icon: Wallet },
-    { name: 'Transfer', to: '/transfer', icon: Send },
-    { name: 'Transactions', to: '/transactions', icon: History },
-    { name: 'Profile', to: '/profile', icon: User },
-    { name: 'Security', to: '/security', icon: Shield },
-  ];
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN';
+
+  const navigation = isAdmin 
+    ? [
+        { name: 'Admin Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
+      ]
+    : [
+        { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
+        { name: 'Wallet', to: '/wallet', icon: Wallet },
+        { name: 'Transfer', to: '/transfer', icon: Send },
+        { name: 'Transactions', to: '/transactions', icon: History },
+        { name: 'Profile', to: '/profile', icon: User },
+        { name: 'Security', to: '/security', icon: Shield },
+      ];
 
   const handleLogout = async () => {
     try {
@@ -64,7 +70,10 @@ export default function DashboardLayout() {
   };
 
   const userInitial = user?.firstName?.charAt(0).toUpperCase() || 'U';
-  const welcomeName = user?.firstName ? `Welcome Back, ${user.firstName}` : 'Welcome Back';
+  const welcomeName = isAdmin 
+    ? 'Admin Command Center' 
+    : (user?.firstName ? `Welcome Back, ${user.firstName}` : 'Welcome Back');
+
 
   return (
     <div className="flex h-screen bg-neutral-light overflow-hidden">
@@ -144,8 +153,9 @@ export default function DashboardLayout() {
 
         {/* Mobile Bottom Navigation (Thumb-friendly navigation) */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-neutral-border flex items-center justify-around px-2 z-40">
-          {navigation.slice(0, 5).map((item) => (
+          {(isAdmin ? navigation : navigation.slice(0, 5)).map((item) => (
             <NavLink
+
               key={item.name}
               to={item.to}
               className={({ isActive }) =>

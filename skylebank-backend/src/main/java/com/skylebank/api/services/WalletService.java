@@ -51,4 +51,20 @@ public class WalletService {
                 "currency", wallet.getCurrency()
         );
     }
+
+    /**
+     * Looks up recipient full name by wallet number.
+     */
+    @Transactional(readOnly = true)
+    public com.skylebank.api.dto.RecipientLookupResponse lookupRecipient(String walletNumber) {
+        log.info("Performing recipient lookup for wallet number: {}", walletNumber);
+        Wallet wallet = walletRepository.findByWalletNumber(walletNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Account number does not exist"));
+
+        String fullName = wallet.getUser().getFirstName() + " " + wallet.getUser().getLastName();
+        return com.skylebank.api.dto.RecipientLookupResponse.builder()
+                .walletNumber(wallet.getWalletNumber())
+                .fullName(fullName)
+                .build();
+    }
 }

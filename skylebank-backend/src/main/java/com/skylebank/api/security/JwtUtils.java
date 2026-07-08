@@ -57,6 +57,9 @@ public class JwtUtils {
     @Value("${app.security.jwt.cookie-name:skylebank-refresh-token}")
     private String jwtCookieName;
 
+    @Value("${app.security.jwt.cookie-same-site:Lax}")
+    private String cookieSameSite;
+
     private javax.crypto.SecretKey key() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
@@ -92,7 +95,7 @@ public class JwtUtils {
                 .maxAge(7 * 24 * 60 * 60) // 7 days in seconds
                 .httpOnly(true)
                 .secure(true) // require HTTPS (true in production/dev over SSL, normally true)
-                .sameSite("Lax") // Allow local cross-site testing with Lax/None
+                .sameSite(cookieSameSite) // Allow local cross-site testing with Lax/None
                 .build();
     }
 
@@ -105,7 +108,7 @@ public class JwtUtils {
                 .maxAge(0)
                 .httpOnly(true)
                 .secure(true)
-                .sameSite("Lax")
+                .sameSite(cookieSameSite)
                 .build();
     }
 
