@@ -36,6 +36,7 @@ import ResetPassword from '../pages/auth/ResetPassword';
 import Dashboard from '../pages/dashboard/Dashboard';
 import Wallet from '../pages/dashboard/Wallet';
 import Transfer from '../pages/dashboard/Transfer';
+import Transactions from '../pages/dashboard/Transactions';
 
 import AdminDashboard from '../pages/admin/AdminDashboard';
 
@@ -87,13 +88,6 @@ const Landing = () => (
 );
 
 // Placeholders for pending screens
-
-const Transactions = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold font-heading">Transaction History</h2>
-    <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-64 flex items-center justify-center text-gray-400">Transactions Ledger Table</div>
-  </div>
-);
 
 const Profile = () => (
   <div className="space-y-6">
