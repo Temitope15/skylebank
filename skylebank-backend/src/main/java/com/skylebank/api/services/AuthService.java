@@ -101,6 +101,17 @@ public class AuthService {
         // Publish event for downstream provisioning (e.g. Wallets)
         eventPublisher.publishEvent(new UserRegisteredEvent(this, savedUser));
 
+        // Publish welcome notification event
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                savedUser,
+                "Welcome to SkyleBank!",
+                "Your account has been successfully created. Welcome to the future of digital banking!",
+                true,
+                "WELCOME",
+                null
+        ));
+
         return savedUser;
     }
 
@@ -243,6 +254,17 @@ public class AuthService {
         User user = resetToken.getUser();
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+
+        // Publish security alert notification event
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                user,
+                "Security Alert: Password Changed",
+                "The password for your SkyleBank account was recently changed. If you did not make this change, please contact support immediately.",
+                true,
+                "SECURITY_ALERT",
+                null
+        ));
 
         // Revoke the token so it cannot be reused
         passwordResetTokenRepository.delete(resetToken);

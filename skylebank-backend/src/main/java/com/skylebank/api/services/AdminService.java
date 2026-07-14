@@ -34,6 +34,7 @@ public class AdminService {
     private final TransactionRepository transactionRepository;
     private final ComplaintRepository complaintRepository;
     private final FraudAlertRepository fraudAlertRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     /**
      * Aggregates stats and health status of the system.
@@ -280,6 +281,38 @@ public class AdminService {
         fraudAlertRepository.save(alert);
 
         log.info("Transaction approved and completed successfully. Ref: {}", transaction.getReference());
+
+        // Publish debit alert to sender
+        java.util.Map<String, Object> debitMeta = new java.util.HashMap<>();
+        debitMeta.put("amount", transaction.getAmount());
+        debitMeta.put("reference", transaction.getReference());
+        debitMeta.put("recipient", lockedTarget.getWalletNumber());
+
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                lockedSource.getUser(),
+                "Debit Alert (Approved)",
+                "Your flagged transfer of ₦" + transaction.getAmount() + " to " + lockedTarget.getWalletNumber() + " has been approved and executed.",
+                true,
+                "DEBIT",
+                debitMeta
+        ));
+
+        // Publish credit alert to receiver
+        java.util.Map<String, Object> creditMeta = new java.util.HashMap<>();
+        creditMeta.put("amount", transaction.getAmount());
+        creditMeta.put("reference", transaction.getReference());
+        creditMeta.put("sender", lockedSource.getWalletNumber());
+
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                lockedTarget.getUser(),
+                "Credit Alert",
+                "Your wallet " + lockedTarget.getWalletNumber() + " has been credited with ₦" + transaction.getAmount() + " from " + lockedSource.getWalletNumber() + ".",
+                true,
+                "CREDIT",
+                creditMeta
+        ));
     }
 
     /**
@@ -308,6 +341,17 @@ public class AdminService {
         fraudAlertRepository.save(alert);
 
         log.info("Transaction rejected. Ref: {}", transaction.getReference());
+
+        // Publish rejection alert to sender
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                transaction.getSourceWallet().getUser(),
+                "Transfer Rejected",
+                "Your flagged transfer of ₦" + transaction.getAmount() + " to " + transaction.getTargetWallet().getWalletNumber() + " was rejected by compliance and has been cancelled.",
+                true,
+                "SECURITY_ALERT",
+                null
+        ));
     }
 
     private FraudAlertResponse mapToFraudAlertResponse(FraudAlert alert) {

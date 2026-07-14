@@ -30,6 +30,7 @@ public class TransferService {
     private final TransactionRepository transactionRepository;
     private final FraudService fraudService;
     private final FraudAlertRepository fraudAlertRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     /**
      * Executes a secure wallet-to-wallet transfer using pessimistic locking.
@@ -114,6 +115,17 @@ public class TransferService {
 
             log.warn("Transfer flagged as suspicious. Reference: {}, Rules: {}", ref, assessment.getReason());
 
+            // Publish security alert notification event
+            eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                    this,
+                    lockedSource.getUser(),
+                    "Suspicious Transfer Flagged",
+                    "A transfer of ₦" + request.getAmount() + " to wallet " + request.getTargetWalletNumber() + " was flagged as suspicious and is pending review.",
+                    true,
+                    "SECURITY_ALERT",
+                    null
+            ));
+
             return TransferResponse.builder()
                     .reference(savedTx.getReference())
                     .sourceWalletNumber(lockedSource.getWalletNumber())
@@ -147,6 +159,38 @@ public class TransferService {
         transactionRepository.save(transaction);
 
         log.info("Transfer completed successfully. Reference: {}", ref);
+
+        // Publish debit alert to sender
+        java.util.Map<String, Object> debitMeta = new java.util.HashMap<>();
+        debitMeta.put("amount", transaction.getAmount());
+        debitMeta.put("reference", transaction.getReference());
+        debitMeta.put("recipient", lockedTarget.getWalletNumber());
+
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                lockedSource.getUser(),
+                "Debit Alert",
+                "Your wallet " + lockedSource.getWalletNumber() + " has been debited with ₦" + transaction.getAmount() + " for a transfer to " + lockedTarget.getWalletNumber() + ".",
+                true,
+                "DEBIT",
+                debitMeta
+        ));
+
+        // Publish credit alert to receiver
+        java.util.Map<String, Object> creditMeta = new java.util.HashMap<>();
+        creditMeta.put("amount", transaction.getAmount());
+        creditMeta.put("reference", transaction.getReference());
+        creditMeta.put("sender", lockedSource.getWalletNumber());
+
+        eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
+                this,
+                lockedTarget.getUser(),
+                "Credit Alert",
+                "Your wallet " + lockedTarget.getWalletNumber() + " has been credited with ₦" + transaction.getAmount() + " from " + lockedSource.getWalletNumber() + ".",
+                true,
+                "CREDIT",
+                creditMeta
+        ));
 
         return TransferResponse.builder()
                 .reference(transaction.getReference())

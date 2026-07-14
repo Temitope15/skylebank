@@ -18,7 +18,7 @@
  * Design Decisions:
  * * Layout Grid pattern with sidebar + main content viewport
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/authService';
+import { notificationService, type NotificationInfo } from '../../services/notificationService';
 
 /**
  * Layout for authenticated dashboard pages, containing desktop sidebar, mobile header,
@@ -44,6 +45,10 @@ export default function DashboardLayout() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+
+  const [notifications, setNotifications] = useState<NotificationInfo[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN';
 
@@ -74,6 +79,58 @@ export default function DashboardLayout() {
   const welcomeName = isAdmin 
     ? 'Admin Command Center' 
     : (user?.firstName ? `Welcome Back, ${user.firstName}` : 'Welcome Back');
+
+  const fetchUnreadCount = async () => {
+    try {
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
+    } catch (err) {
+      console.error('Failed to fetch unread count:', err);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const list = await notificationService.getNotifications();
+      setNotifications(list);
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (showNotifications) {
+      fetchNotifications();
+    }
+  }, [showNotifications]);
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      fetchUnreadCount();
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
 
 
   return (
@@ -135,9 +192,16 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <button className="relative p-1 text-text-secondary hover:text-primary transition-colors focus:outline-none">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-1.5 text-text-secondary hover:text-primary transition-colors focus:outline-none hover:bg-neutral-light rounded-full"
+            >
               <Bell className="h-6 w-6" />
-              <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full"></span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-5 w-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
             <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center text-white font-semibold shadow-sm">
               {userInitial}
@@ -248,6 +312,89 @@ export default function DashboardLayout() {
               >
                 Yes, Logout
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications Drawer */}
+      {showNotifications && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div className="absolute inset-0 bg-accent/30 backdrop-blur-sm transition-opacity" onClick={() => setShowNotifications(false)} />
+          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-md bg-white shadow-2xl border-l border-neutral-border flex flex-col animate-in slide-in-from-right duration-300">
+              <div className="px-6 py-5 border-b border-neutral-border flex items-center justify-between bg-neutral-light">
+                <div className="flex items-center space-x-2">
+                  <Bell className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-bold text-accent font-heading">Notifications</h2>
+                  {unreadCount > 0 && (
+                    <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-semibold">
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={handleMarkAllAsRead}
+                      className="text-xs text-primary hover:text-primary-dark font-medium transition-colors"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setShowNotifications(false)}
+                    className="p-1 rounded-full hover:bg-neutral-border/50 text-text-secondary transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-center">
+                    <div className="h-16 w-16 bg-neutral-light rounded-full flex items-center justify-center text-text-secondary mb-4 border border-neutral-border">
+                      <Bell className="h-8 w-8" />
+                    </div>
+                    <p className="text-text-primary font-semibold font-heading">All caught up!</p>
+                    <p className="text-text-secondary text-sm mt-1">You have no new notifications.</p>
+                  </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div 
+                      key={n.id} 
+                      className={`relative p-4 rounded-card border transition-all duration-200 ${
+                        n.isRead 
+                          ? 'bg-white border-neutral-border text-text-secondary' 
+                          : 'bg-primary/5 border-primary/20 text-text-primary shadow-sm hover:border-primary/40'
+                      }`}
+                    >
+                      {!n.isRead && (
+                        <div className="absolute top-4 right-4 flex items-center space-x-2">
+                          <span className="h-2 w-2 bg-primary rounded-full" />
+                          <button 
+                            onClick={() => handleMarkAsRead(n.id)}
+                            className="text-[10px] text-primary hover:underline font-medium"
+                          >
+                            Mark read
+                          </button>
+                        </div>
+                      )}
+                      <h4 className="font-bold text-sm pr-16">{n.title}</h4>
+                      <p className="text-xs mt-1 leading-relaxed text-text-secondary">{n.message}</p>
+                      <span className="text-[10px] text-text-muted mt-2 block">
+                        {new Date(n.createdAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
