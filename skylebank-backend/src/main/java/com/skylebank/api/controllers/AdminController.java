@@ -4,6 +4,7 @@ import com.skylebank.api.dto.AdminStatsResponse;
 import com.skylebank.api.dto.AdminUserResponse;
 import com.skylebank.api.dto.AdminTransactionResponse;
 import com.skylebank.api.dto.ComplaintResponse;
+import com.skylebank.api.dto.FraudAlertResponse;
 import com.skylebank.api.models.Transaction;
 import com.skylebank.api.models.UserStatus;
 import com.skylebank.api.models.WalletStatus;
@@ -97,5 +98,34 @@ public class AdminController {
         log.info("REST request to resolve complaint {}", id);
         adminService.resolveComplaint(id);
         return ResponseEntity.ok(Map.of("message", "Complaint resolved successfully"));
+    }
+
+    /**
+     * Lists all active pending fraud alerts.
+     */
+    @GetMapping("/fraud")
+    public ResponseEntity<List<FraudAlertResponse>> getPendingFraudAlerts() {
+        log.info("REST request to fetch pending fraud alerts");
+        return ResponseEntity.ok(adminService.getPendingFraudAlerts());
+    }
+
+    /**
+     * Approves a flagged transaction, executing the deferred balance transfers.
+     */
+    @PostMapping("/fraud/{id}/approve")
+    public ResponseEntity<Map<String, String>> approveFraudAlert(@PathVariable Long id) {
+        log.info("REST request to approve flagged transaction for alert {}", id);
+        adminService.approveFlaggedTransaction(id);
+        return ResponseEntity.ok(Map.of("message", "Transaction approved and completed successfully"));
+    }
+
+    /**
+     * Rejects a flagged transaction.
+     */
+    @PostMapping("/fraud/{id}/reject")
+    public ResponseEntity<Map<String, String>> rejectFraudAlert(@PathVariable Long id) {
+        log.info("REST request to reject flagged transaction for alert {}", id);
+        adminService.rejectFlaggedTransaction(id);
+        return ResponseEntity.ok(Map.of("message", "Transaction rejected successfully"));
     }
 }

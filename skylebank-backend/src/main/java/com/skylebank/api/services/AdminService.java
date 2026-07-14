@@ -4,6 +4,7 @@ import com.skylebank.api.dto.AdminStatsResponse;
 import com.skylebank.api.dto.AdminUserResponse;
 import com.skylebank.api.dto.AdminTransactionResponse;
 import com.skylebank.api.dto.ComplaintResponse;
+import com.skylebank.api.dto.FraudAlertResponse;
 import com.skylebank.api.models.*;
 import com.skylebank.api.repositories.*;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class AdminService {
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
     private final ComplaintRepository complaintRepository;
+    private final FraudAlertRepository fraudAlertRepository;
 
     /**
      * Aggregates stats and health status of the system.
@@ -182,6 +184,147 @@ public class AdminService {
                 .status(complaint.getStatus().name())
                 .createdAt(complaint.getCreatedAt())
                 .updatedAt(complaint.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * Lists all pending fraud alerts.
+     */
+    @Transactional(readOnly = true)
+    public List<FraudAlertResponse> getPendingFraudAlerts() {
+        log.info("Retrieving all pending fraud alerts for review");
+        return fraudAlertRepository.findByStatusOrderByCreatedAtDesc(FraudAlertStatus.PENDING).stream()
+                .map(this::mapToFraudAlertResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Approves a flagged transaction, executing the deferred balance transfers.
+     */
+    @Transactional
+    public void approveFlaggedTransaction(Long alertId) {
+        log.info("Approving flagged transaction for alert ID: {}", alertId);
+        FraudAlert alert = fraudAlertRepository.findById(alertId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud alert not found with ID: " + alertId));
+
+        if (alert.getStatus() != FraudAlertStatus.PENDING) {
+            throw new IllegalStateException("Fraud alert is not in PENDING state");
+        }
+
+        Transaction transaction = alert.getTransaction();
+        if (transaction.getStatus() != TransactionStatus.PENDING) {
+            throw new IllegalStateException("Transaction is not in PENDING state");
+        }
+
+        Wallet source = transaction.getSourceWallet();
+        Wallet target = transaction.getTargetWallet();
+
+        // Prevent deadlock by sorting locked resources
+        Wallet wallet1;
+        Wallet wallet2;
+        if (source.getWalletNumber().compareTo(target.getWalletNumber()) < 0) {
+            wallet1 = walletRepository.findByWalletNumberForUpdate(source.getWalletNumber())
+                    .orElseThrow(() -> new IllegalStateException("Failed to lock source wallet"));
+            wallet2 = walletRepository.findByWalletNumberForUpdate(target.getWalletNumber())
+                    .orElseThrow(() -> new IllegalStateException("Failed to lock target wallet"));
+        } else {
+            wallet1 = walletRepository.findByWalletNumberForUpdate(target.getWalletNumber())
+                    .orElseThrow(() -> new IllegalStateException("Failed to lock target wallet"));
+            wallet2 = walletRepository.findByWalletNumberForUpdate(source.getWalletNumber())
+                    .orElseThrow(() -> new IllegalStateException("Failed to lock source wallet"));
+        }
+
+        Wallet lockedSource = wallet1.getWalletNumber().equals(source.getWalletNumber()) ? wallet1 : wallet2;
+        Wallet lockedTarget = wallet1.getWalletNumber().equals(target.getWalletNumber()) ? wallet1 : wallet2;
+
+        // Verify account statuses
+        if (lockedSource.getWalletStatus() != WalletStatus.ACTIVE) {
+            transaction.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(transaction);
+            alert.setStatus(FraudAlertStatus.REJECTED);
+            alert.setReason("Source wallet is inactive/suspended");
+            fraudAlertRepository.save(alert);
+            throw new IllegalStateException("Source wallet is inactive/suspended");
+        }
+        if (lockedTarget.getWalletStatus() != WalletStatus.ACTIVE) {
+            transaction.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(transaction);
+            alert.setStatus(FraudAlertStatus.REJECTED);
+            alert.setReason("Recipient wallet is inactive/suspended");
+            fraudAlertRepository.save(alert);
+            throw new IllegalStateException("Recipient wallet is inactive/suspended");
+        }
+
+        // Verify balance
+        if (lockedSource.getBalance().compareTo(transaction.getAmount()) < 0) {
+            transaction.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(transaction);
+            alert.setStatus(FraudAlertStatus.REJECTED);
+            alert.setReason("Insufficient funds");
+            fraudAlertRepository.save(alert);
+            throw new IllegalStateException("Insufficient funds to complete this transfer");
+        }
+
+        // Perform balance adjustments
+        lockedSource.setBalance(lockedSource.getBalance().subtract(transaction.getAmount()));
+        lockedTarget.setBalance(lockedTarget.getBalance().add(transaction.getAmount()));
+
+        walletRepository.save(lockedSource);
+        walletRepository.save(lockedTarget);
+
+        // Update transaction and alert status
+        transaction.setStatus(TransactionStatus.SUCCESS);
+        transactionRepository.save(transaction);
+
+        alert.setStatus(FraudAlertStatus.APPROVED);
+        fraudAlertRepository.save(alert);
+
+        log.info("Transaction approved and completed successfully. Ref: {}", transaction.getReference());
+    }
+
+    /**
+     * Rejects a flagged transaction.
+     */
+    @Transactional
+    public void rejectFlaggedTransaction(Long alertId) {
+        log.info("Rejecting flagged transaction for alert ID: {}", alertId);
+        FraudAlert alert = fraudAlertRepository.findById(alertId)
+                .orElseThrow(() -> new IllegalArgumentException("Fraud alert not found with ID: " + alertId));
+
+        if (alert.getStatus() != FraudAlertStatus.PENDING) {
+            throw new IllegalStateException("Fraud alert is not in PENDING state");
+        }
+
+        Transaction transaction = alert.getTransaction();
+        if (transaction.getStatus() != TransactionStatus.PENDING) {
+            throw new IllegalStateException("Transaction is not in PENDING state");
+        }
+
+        // Mark transaction as FAILED, and alert as REJECTED. No funds are touched.
+        transaction.setStatus(TransactionStatus.FAILED);
+        transactionRepository.save(transaction);
+
+        alert.setStatus(FraudAlertStatus.REJECTED);
+        fraudAlertRepository.save(alert);
+
+        log.info("Transaction rejected. Ref: {}", transaction.getReference());
+    }
+
+    private FraudAlertResponse mapToFraudAlertResponse(FraudAlert alert) {
+        Transaction tx = alert.getTransaction();
+        return FraudAlertResponse.builder()
+                .id(alert.getId())
+                .transactionId(tx.getId())
+                .transactionReference(tx.getReference())
+                .senderEmail(tx.getSourceWallet() != null ? tx.getSourceWallet().getUser().getEmail() : "N/A")
+                .senderWalletNumber(tx.getSourceWallet() != null ? tx.getSourceWallet().getWalletNumber() : "N/A")
+                .recipientWalletNumber(tx.getTargetWallet().getWalletNumber())
+                .amount(tx.getAmount())
+                .ruleName(alert.getRuleName())
+                .riskScore(alert.getRiskScore())
+                .status(alert.getStatus().name())
+                .reason(alert.getReason())
+                .createdAt(alert.getCreatedAt())
                 .build();
     }
 }

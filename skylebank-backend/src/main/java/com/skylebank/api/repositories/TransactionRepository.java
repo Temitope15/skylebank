@@ -19,6 +19,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.status = :status")
     java.math.BigDecimal sumVolumeByStatus(@org.springframework.data.repository.query.Param("status") com.skylebank.api.models.TransactionStatus status);
+
+    Optional<Transaction> findFirstBySourceWalletOrderByCreatedAtDesc(Wallet sourceWallet);
+
+    long countBySourceWalletAndCreatedAtAfter(Wallet sourceWallet, java.time.LocalDateTime dateTime);
 }
 
 

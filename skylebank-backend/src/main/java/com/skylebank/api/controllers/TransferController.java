@@ -31,12 +31,13 @@ public class TransferController {
     @PostMapping
     public ResponseEntity<TransferResponse> transferFunds(
             Principal principal,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "User-Agent", required = false) String userAgent,
             @Valid @RequestBody TransferRequest transferRequest) {
         String email = principal.getName();
         log.info("REST request to execute transfer by user {}: target={}, amount={}",
                 email, transferRequest.getTargetWalletNumber(), transferRequest.getAmount());
         
-        TransferResponse response = transferService.transferFunds(email, transferRequest);
+        TransferResponse response = transferService.transferFunds(email, transferRequest, userAgent);
         return ResponseEntity.ok(response);
     }
 }

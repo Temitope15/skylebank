@@ -51,6 +51,9 @@ public class Transaction {
     @Column(name = "description", length = 255)
     private String description;
 
+    @Column(name = "user_agent", length = 255)
+    private String userAgent;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

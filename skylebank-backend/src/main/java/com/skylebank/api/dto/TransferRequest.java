@@ -15,6 +15,9 @@ import java.math.BigDecimal;
  */
 @Getter
 @Setter
+@lombok.Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class TransferRequest {
 
     @NotBlank(message = "Target account number is required")

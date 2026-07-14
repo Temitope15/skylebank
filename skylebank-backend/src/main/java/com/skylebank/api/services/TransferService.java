@@ -9,6 +9,7 @@ import com.skylebank.api.models.Wallet;
 import com.skylebank.api.models.WalletStatus;
 import com.skylebank.api.repositories.TransactionRepository;
 import com.skylebank.api.repositories.WalletRepository;
+import com.skylebank.api.repositories.FraudAlertRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,12 +28,14 @@ public class TransferService {
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
+    private final FraudService fraudService;
+    private final FraudAlertRepository fraudAlertRepository;
 
     /**
      * Executes a secure wallet-to-wallet transfer using pessimistic locking.
      */
     @Transactional
-    public TransferResponse transferFunds(String sourceEmail, TransferRequest request) {
+    public TransferResponse transferFunds(String sourceEmail, TransferRequest request, String userAgent) {
         log.info("Initiating transfer of ₦{} from user {} to target wallet {}", 
                 request.getAmount(), sourceEmail, request.getTargetWalletNumber());
 
@@ -81,16 +84,55 @@ public class TransferService {
             throw new IllegalStateException("Insufficient funds to complete this transfer");
         }
 
-        // 7. Deduct and Credit balances
+        String ref = "TX-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+
+        // 7. Run Fraud Risk Assessment
+        FraudService.FraudAssessment assessment = fraudService.assess(lockedSource, request, userAgent);
+        if (assessment.isFlagged()) {
+            Transaction transaction = Transaction.builder()
+                    .reference(ref)
+                    .sourceWallet(lockedSource)
+                    .targetWallet(lockedTarget)
+                    .amount(request.getAmount())
+                    .currency("NGN")
+                    .transactionType(TransactionType.TRANSFER)
+                    .status(TransactionStatus.PENDING)
+                    .description(request.getDescription())
+                    .userAgent(userAgent)
+                    .build();
+
+            Transaction savedTx = transactionRepository.save(transaction);
+
+            com.skylebank.api.models.FraudAlert alert = com.skylebank.api.models.FraudAlert.builder()
+                    .transaction(savedTx)
+                    .ruleName(assessment.getReason())
+                    .riskScore(assessment.getRiskScore())
+                    .status(com.skylebank.api.models.FraudAlertStatus.PENDING)
+                    .reason(assessment.getReason())
+                    .build();
+            fraudAlertRepository.save(alert);
+
+            log.warn("Transfer flagged as suspicious. Reference: {}, Rules: {}", ref, assessment.getReason());
+
+            return TransferResponse.builder()
+                    .reference(savedTx.getReference())
+                    .sourceWalletNumber(lockedSource.getWalletNumber())
+                    .targetWalletNumber(lockedTarget.getWalletNumber())
+                    .amount(savedTx.getAmount())
+                    .status(savedTx.getStatus().name())
+                    .createdAt(savedTx.getCreatedAt())
+                    .description(savedTx.getDescription())
+                    .build();
+        }
+
+        // 8. Deduct and Credit balances (No Fraud detected)
         lockedSource.setBalance(lockedSource.getBalance().subtract(request.getAmount()));
         lockedTarget.setBalance(lockedTarget.getBalance().add(request.getAmount()));
 
         walletRepository.save(lockedSource);
         walletRepository.save(lockedTarget);
 
-        // 8. Generate unique reference and save Transaction record
-        String ref = "TX-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
-        Transaction transaction = Objects.requireNonNull(Transaction.builder()
+        Transaction transaction = Transaction.builder()
                 .reference(ref)
                 .sourceWallet(lockedSource)
                 .targetWallet(lockedTarget)
@@ -99,7 +141,8 @@ public class TransferService {
                 .transactionType(TransactionType.TRANSFER)
                 .status(TransactionStatus.SUCCESS)
                 .description(request.getDescription())
-                .build());
+                .userAgent(userAgent)
+                .build();
 
         transactionRepository.save(transaction);
 

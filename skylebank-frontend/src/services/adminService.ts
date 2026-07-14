@@ -50,6 +50,21 @@ export interface ComplaintInfo {
   updatedAt: string;
 }
 
+export interface FraudAlertInfo {
+  id: number;
+  transactionId: number;
+  transactionReference: string;
+  senderEmail: string;
+  senderWalletNumber: string;
+  recipientWalletNumber: string;
+  amount: number;
+  ruleName: string;
+  riskScore: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reason: string;
+  createdAt: string;
+}
+
 class AdminService {
   async getStats(): Promise<AdminStats> {
     const response = await apiClient.get<AdminStats>('/api/v1/admin/stats');
@@ -85,6 +100,19 @@ class AdminService {
 
   async resolveComplaint(id: number): Promise<void> {
     await apiClient.patch(`/api/v1/admin/complaints/${id}/resolve`);
+  }
+
+  async getFraudAlerts(): Promise<FraudAlertInfo[]> {
+    const response = await apiClient.get<FraudAlertInfo[]>('/api/v1/admin/fraud');
+    return response.data;
+  }
+
+  async approveFraudAlert(id: number): Promise<void> {
+    await apiClient.post(`/api/v1/admin/fraud/${id}/approve`);
+  }
+
+  async rejectFraudAlert(id: number): Promise<void> {
+    await apiClient.post(`/api/v1/admin/fraud/${id}/reject`);
   }
 }
 

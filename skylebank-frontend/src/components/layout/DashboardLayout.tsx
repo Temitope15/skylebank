@@ -50,6 +50,7 @@ export default function DashboardLayout() {
   const navigation = isAdmin 
     ? [
         { name: 'Admin Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
+        { name: 'Fraud Management', to: '/admin/fraud', icon: Shield },
       ]
     : [
         { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },

@@ -39,6 +39,7 @@ import Transfer from '../pages/dashboard/Transfer';
 import Transactions from '../pages/dashboard/Transactions';
 
 import AdminDashboard from '../pages/admin/AdminDashboard';
+import FraudManagement from '../pages/admin/FraudManagement';
 
 // ==========================================
 // Route Guard Components
@@ -198,6 +199,7 @@ export default function AppRoutes() {
           }
         >
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/fraud" element={<FraudManagement />} />
         </Route>
 
 
