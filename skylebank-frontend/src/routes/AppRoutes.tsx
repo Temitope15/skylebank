@@ -37,6 +37,8 @@ import Dashboard from '../pages/dashboard/Dashboard';
 import Wallet from '../pages/dashboard/Wallet';
 import Transfer from '../pages/dashboard/Transfer';
 import Transactions from '../pages/dashboard/Transactions';
+import Profile from '../pages/dashboard/Profile';
+import Security from '../pages/dashboard/Security';
 
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import FraudManagement from '../pages/admin/FraudManagement';
@@ -89,20 +91,6 @@ const Landing = () => (
 );
 
 // Placeholders for pending screens
-
-const Profile = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold font-heading">Profile Settings</h2>
-    <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-64 flex items-center justify-center text-gray-400">User Information Form</div>
-  </div>
-);
-
-const Security = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold font-heading">Security Dashboard</h2>
-    <div className="p-6 bg-white border border-neutral-border rounded-card shadow-sm h-64 flex items-center justify-center text-gray-400">2FA & Session Configs</div>
-  </div>
-);
 
 const NotFound = () => (
   <div className="text-center py-20">

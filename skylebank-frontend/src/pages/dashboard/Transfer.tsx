@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -10,10 +10,13 @@ import {
   Info,
   User,
   X,
-  Printer
+  Printer,
+  ShieldCheck
 } from 'lucide-react';
 import { walletService } from '../../services/walletService';
 import { transferService } from '../../services/transferService';
+import { kycService } from '../../services/kycService';
+import type { UserProfileResponse } from '../../services/kycService';
 import type { TransferResponse } from '../../services/transferService';
 
 export default function Transfer() {
@@ -22,11 +25,13 @@ export default function Transfer() {
   // Account/balance details
   const [balance, setBalance] = useState<number>(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
+  const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   
   // Form fields
   const [accountNumber, setAccountNumber] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [pin, setPin] = useState('');
   
   // Recipient verification state
   const [recipientName, setRecipientName] = useState<string | null>(null);
@@ -40,22 +45,28 @@ export default function Transfer() {
   const [transferReceipt, setTransferReceipt] = useState<TransferResponse | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
 
-  // Daily transfer limit constant
-  const DAILY_LIMIT = 50000;
+  // Anomaly Warning States
+  const [showAnomalyWarning, setShowAnomalyWarning] = useState(false);
+  const [anomalyMessage, setAnomalyMessage] = useState('');
+  const [trustConfirmed, setTrustConfirmed] = useState(false);
+
+  const fetchProfileAndBalance = async () => {
+    try {
+      setLoadingBalance(true);
+      const balanceData = await walletService.getWalletBalance();
+      setBalance(balanceData.balance);
+      
+      const profileData = await kycService.getUserProfile();
+      setProfile(profileData);
+    } catch (err) {
+      console.error('Failed to initialize transfer screen:', err);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchBalance() {
-      try {
-        setLoadingBalance(true);
-        const data = await walletService.getWalletBalance();
-        setBalance(data.balance);
-      } catch (err) {
-        console.error('Failed to fetch balance:', err);
-      } finally {
-        setLoadingBalance(false);
-      }
-    }
-    fetchBalance();
+    fetchProfileAndBalance();
   }, []);
 
   // Trigger lookup when account number is exactly 10 digits
@@ -82,14 +93,25 @@ export default function Transfer() {
     }
   };
 
-  const handleTransferSubmit = async (e: React.FormEvent) => {
+  // Get daily limit based on user KYC tier
+  const getDailyLimit = () => {
+    if (!profile) return 500000;
+    if (profile.kycLevel === 'TIER_1') return 500000;
+    if (profile.kycLevel === 'TIER_2') return 1000000;
+    return Infinity; // Tier 3
+  };
+
+  const dailyLimit = getDailyLimit();
+
+  const handleTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipientName) return;
     setTransferError(null);
+    setPin('');
     setShowConfirmModal(true);
   };
 
-  const executeTransfer = async () => {
+  const executeTransfer = async (overrideTrust = false) => {
     try {
       setProcessingTransfer(true);
       setTransferError(null);
@@ -97,18 +119,34 @@ export default function Transfer() {
       const payload = {
         targetWalletNumber: accountNumber,
         amount: parseFloat(amount),
-        description: description || 'Transfer from SkyleBank'
+        description: description || 'Transfer from SkyleBank',
+        pin,
+        trustConfirmed: overrideTrust || trustConfirmed
       };
 
       const result = await transferService.executeTransfer(payload);
       setTransferReceipt(result);
       setShowConfirmModal(false);
+      setShowAnomalyWarning(false);
     } catch (err: any) {
-      setTransferError(err.response?.data?.message || 'An unexpected error occurred during the transfer.');
-      setShowConfirmModal(false);
+      const errMsg = err.response?.data?.message || 'An unexpected error occurred during the transfer.';
+      
+      if (errMsg.includes('ANOMALY_WARNING')) {
+        const cleanedMsg = errMsg.replace('ANOMALY_WARNING:', '').trim();
+        setAnomalyMessage(cleanedMsg);
+        setShowConfirmModal(false);
+        setShowAnomalyWarning(true);
+      } else {
+        setTransferError(errMsg);
+      }
     } finally {
       setProcessingTransfer(false);
     }
+  };
+
+  const handleAnomalyProceed = () => {
+    setTrustConfirmed(true);
+    executeTransfer(true);
   };
 
   const handleCopyReference = (ref: string) => {
@@ -122,6 +160,7 @@ export default function Transfer() {
   };
 
   const formatCurrency = (val: number) => {
+    if (val === Infinity) return 'Unlimited';
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
       currency: 'NGN',
@@ -132,11 +171,11 @@ export default function Transfer() {
   // Basic validation rules
   const enteredAmount = parseFloat(amount) || 0;
   const isAmountValid = enteredAmount >= 10 && enteredAmount <= balance;
-  const isLimitExceeded = enteredAmount > DAILY_LIMIT;
-  const canSubmit = accountNumber.length === 10 && recipientName !== null && isAmountValid && !isLimitExceeded && !verifyingRecipient;
+  const isLimitExceeded = enteredAmount > dailyLimit;
+  const hasPinConfigured = profile?.hasTransactionPin;
+  const canSubmit = accountNumber.length === 10 && recipientName !== null && isAmountValid && !isLimitExceeded && !verifyingRecipient && hasPinConfigured;
 
   if (transferReceipt) {
-    // Neatly designed digital bank receipt
     return (
       <div className="max-w-md mx-auto py-4 animate-in zoom-in duration-300">
         <div className="bg-white border border-neutral-border rounded-card shadow-lg overflow-hidden print:border-none print:shadow-none">
@@ -250,11 +289,33 @@ export default function Transfer() {
           </h3>
         </div>
         <div className="text-right">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
             NGN Wallet
           </span>
         </div>
       </div>
+
+      {/* PIN Alert setup notice */}
+      {profile && !profile.hasTransactionPin && (
+        <div className="p-5 bg-amber-50 border border-amber-200 rounded-card flex items-start space-x-4 animate-in slide-in-from-top-2 duration-300">
+          <div className="p-2 bg-amber-100 rounded-xl text-amber-600 shrink-0">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h4 className="font-bold text-amber-900 text-sm">Transaction PIN Required</h4>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              For security, you must configure a 4-digit Transaction PIN before sending funds.
+            </p>
+            <button
+              onClick={() => navigate('/security')}
+              className="text-xs font-bold text-primary hover:underline flex items-center space-x-1"
+            >
+              <span>Setup PIN in Settings</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Transfer Form */}
       <div className="bg-white border border-neutral-border rounded-card shadow-sm p-6">
@@ -282,7 +343,8 @@ export default function Transfer() {
                 placeholder="e.g. 1010000023"
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
-                className="w-full pl-4 pr-12 py-3 border border-neutral-border rounded-btn focus:outline-none focus:border-primary font-mono text-lg tracking-wider"
+                disabled={!hasPinConfigured}
+                className="w-full pl-4 pr-12 py-3 border border-neutral-border rounded-btn focus:outline-none focus:border-primary font-mono text-lg tracking-wider disabled:bg-neutral-light disabled:cursor-not-allowed"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
                 {verifyingRecipient && (
@@ -323,13 +385,14 @@ export default function Transfer() {
                 placeholder="Min 10.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-neutral-border rounded-btn focus:outline-none focus:border-primary font-semibold text-lg"
+                disabled={!hasPinConfigured}
+                className="w-full pl-10 pr-4 py-3 border border-neutral-border rounded-btn focus:outline-none focus:border-primary font-semibold text-lg disabled:bg-neutral-light disabled:cursor-not-allowed"
               />
             </div>
             {isLimitExceeded && (
               <div className="flex items-center space-x-2 text-red-600 text-xs mt-1 font-medium">
                 <AlertCircle className="h-3.5 w-3.5" />
-                <span>Amount exceeds the daily transfer limit of {formatCurrency(DAILY_LIMIT)}.</span>
+                <span>Amount exceeds your active daily transfer limit of {formatCurrency(dailyLimit)}.</span>
               </div>
             )}
             {!isLimitExceeded && enteredAmount > balance && (
@@ -350,9 +413,10 @@ export default function Transfer() {
                 placeholder="What is this transfer for?"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={!hasPinConfigured}
                 maxLength={150}
                 rows={2}
-                className="w-full px-4 py-3 border border-neutral-border rounded-btn focus:outline-none focus:border-primary text-sm resize-none"
+                className="w-full px-4 py-3 border border-neutral-border rounded-btn focus:outline-none focus:border-primary text-sm resize-none disabled:bg-neutral-light disabled:cursor-not-allowed"
               />
               <span className="absolute right-3 bottom-2 text-[10px] text-text-secondary">
                 {description.length}/150
@@ -401,7 +465,7 @@ export default function Transfer() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-5">
               <div className="text-center">
                 <span className="text-xs text-text-secondary font-semibold uppercase tracking-wider">Sending</span>
                 <div className="text-3xl font-bold text-text-primary mt-1 font-heading">
@@ -409,7 +473,7 @@ export default function Transfer() {
                 </div>
               </div>
 
-              <div className="space-y-3 text-sm">
+              <div className="space-y-3 text-sm pb-4 border-b border-neutral-border">
                 <div className="flex justify-between items-center py-0.5">
                   <span className="text-text-secondary">To Recipient</span>
                   <span className="font-semibold text-text-primary">{recipientName}</span>
@@ -424,12 +488,22 @@ export default function Transfer() {
                   <span className="text-text-secondary">Fee</span>
                   <span className="text-success font-semibold">₦0.00 (Free)</span>
                 </div>
-                {description && (
-                  <div className="flex justify-between items-start py-0.5">
-                    <span className="text-text-secondary">Note</span>
-                    <span className="text-text-primary italic max-w-[160px] text-right break-words">{description}</span>
-                  </div>
-                )}
+              </div>
+
+              {/* PIN INPUT REQUIREMENT */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider text-center">
+                  Enter 4-Digit Transaction PIN
+                </label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••"
+                  className="w-full px-4 py-3 bg-neutral-light border border-neutral-border rounded-xl font-mono text-center text-lg tracking-widest focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+                  required
+                />
               </div>
             </div>
 
@@ -443,9 +517,9 @@ export default function Transfer() {
                 Cancel
               </button>
               <button 
-                onClick={executeTransfer}
-                disabled={processingTransfer}
-                className="py-2.5 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white rounded-btn text-xs font-semibold transition-all focus:outline-none flex items-center justify-center space-x-1.5 shadow-sm"
+                onClick={() => executeTransfer(false)}
+                disabled={processingTransfer || pin.length !== 4}
+                className="py-2.5 bg-primary hover:bg-primary-dark disabled:bg-neutral-border disabled:text-text-secondary/50 text-white rounded-btn text-xs font-semibold transition-all focus:outline-none flex items-center justify-center space-x-1.5 shadow-sm"
               >
                 {processingTransfer ? (
                   <>
@@ -454,6 +528,49 @@ export default function Transfer() {
                   </>
                 ) : (
                   <span>Send Now</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trust Anomaly Confirmation Warning Modal */}
+      {showAnomalyWarning && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-neutral-border rounded-card shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="mx-auto w-12 h-12 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center text-amber-500 animate-bounce">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-neutral-dark">Security Alert</h3>
+              <p className="text-sm text-text-secondary leading-relaxed">
+                {anomalyMessage || 'You are about to transfer a large sum of money. Please confirm you initiated this transfer.'}
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-neutral-light border-t border-neutral-border grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => {
+                  setShowAnomalyWarning(false);
+                  setPin('');
+                }}
+                disabled={processingTransfer}
+                className="py-2.5 border border-neutral-border hover:border-text-secondary rounded-btn text-xs font-semibold text-text-secondary hover:text-text-primary transition-all focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAnomalyProceed}
+                disabled={processingTransfer}
+                className="py-2.5 bg-primary hover:bg-primary-dark text-white rounded-btn text-xs font-semibold transition-all focus:outline-none flex items-center justify-center space-x-1.5 shadow-sm"
+              >
+                {processingTransfer ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Authorizing...</span>
+                  </>
+                ) : (
+                  <span>Yes, Proceed</span>
                 )}
               </button>
             </div>

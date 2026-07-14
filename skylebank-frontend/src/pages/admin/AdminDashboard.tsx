@@ -15,12 +15,17 @@ import {
   Lock, 
   Unlock,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  FileCheck,
+  XCircle,
+  FileText
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
+import { kycService } from '../../services/kycService';
+import type { KycUpgradeRequest } from '../../services/kycService';
 import type { AdminStats, AdminUser, AdminTransaction, ComplaintInfo } from '../../services/adminService';
 
-type TabType = 'overview' | 'users' | 'transactions' | 'complaints';
+type TabType = 'overview' | 'users' | 'transactions' | 'complaints' | 'kyc';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -28,6 +33,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [complaints, setComplaints] = useState<ComplaintInfo[]>([]);
+  const [kycRequests, setKycRequests] = useState<KycUpgradeRequest[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -37,21 +43,24 @@ export default function AdminDashboard() {
   const [userSearch, setUserSearch] = useState('');
   const [txSearch, setTxSearch] = useState('');
   const [complaintFilter, setComplaintFilter] = useState<'ALL' | 'PENDING' | 'RESOLVED'>('ALL');
+  const [kycFilter, setKycFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [statsData, usersData, txData, complaintsData] = await Promise.all([
+      const [statsData, usersData, txData, complaintsData, kycData] = await Promise.all([
         adminService.getStats(),
         adminService.getUsers(),
         adminService.getTransactions(),
-        adminService.getComplaints()
+        adminService.getComplaints(),
+        kycService.getPendingRequests()
       ]);
       setStats(statsData);
       setUsers(usersData);
       setTransactions(txData);
       setComplaints(complaintsData);
+      setKycRequests(kycData);
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || 'Failed to load administration data.');
@@ -103,6 +112,30 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleApproveKyc = async (requestId: string) => {
+    setActionLoading(`kyc-${requestId}`);
+    try {
+      await kycService.approveRequest(requestId);
+      await fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to approve KYC upgrade request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectKyc = async (requestId: string) => {
+    setActionLoading(`kyc-${requestId}`);
+    try {
+      await kycService.rejectRequest(requestId);
+      await fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to reject KYC upgrade request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const formatMoney = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -141,6 +174,11 @@ export default function AdminDashboard() {
     return c.status === complaintFilter;
   });
 
+  const filteredKycRequests = kycRequests.filter(req => {
+    if (kycFilter === 'ALL') return true;
+    return req.status === kycFilter;
+  });
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
@@ -167,6 +205,8 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  const pendingKycCount = kycRequests.filter(req => req.status === 'PENDING').length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -242,7 +282,7 @@ export default function AdminDashboard() {
       {/* Navigation Tabs */}
       <div className="border-b border-neutral-border">
         <nav className="flex space-x-8">
-          {(['overview', 'users', 'transactions', 'complaints'] as TabType[]).map((tab) => (
+          {(['overview', 'users', 'transactions', 'complaints', 'kyc'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -252,10 +292,15 @@ export default function AdminDashboard() {
                   : 'border-transparent text-text-secondary hover:text-text-primary hover:border-neutral-border'
               }`}
             >
-              {tab === 'overview' ? 'System Overview' : tab}
+              {tab === 'overview' ? 'System Overview' : tab === 'kyc' ? 'KYC Verifications' : tab}
               {tab === 'complaints' && (stats?.unresolvedComplaints || 0) > 0 && (
                 <span className="ml-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {stats?.unresolvedComplaints}
+                </span>
+              )}
+              {tab === 'kyc' && pendingKycCount > 0 && (
+                <span className="ml-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {pendingKycCount}
                 </span>
               )}
             </button>
@@ -405,8 +450,8 @@ export default function AdminDashboard() {
                     filteredUsers.map((u) => (
                       <tr key={u.userId} className="hover:bg-neutral-light/50 transition-colors">
                         <td className="p-4">
-                          <p className="font-bold text-text-primary capitalize">{u.firstName} {u.lastName}</p>
-                          <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase mt-0.5">{u.role}</span>
+                           <p className="font-bold text-text-primary capitalize">{u.firstName} {u.lastName}</p>
+                           <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase mt-0.5">{u.role}</span>
                         </td>
                         <td className="p-4">
                           <p className="text-text-primary font-medium">{u.email}</p>
@@ -435,7 +480,7 @@ export default function AdminDashboard() {
                           <button
                             disabled={actionLoading !== null || u.role === 'ADMIN'}
                             onClick={() => handleToggleUserStatus(u.userId, u.accountStatus)}
-                            className={`px-3 py-1.5 rounded-btn text-xs font-bold border transition-colors inline-flex items-center gap-1 focus:outline-none ${
+                            className={`px-3 py-1.5 rounded-btn text-xs font-bold border transition-colors inline-flex items-center gap-1 focus:outline-none focus:ring-0 ${
                               u.role === 'ADMIN'
                                 ? 'opacity-40 cursor-not-allowed bg-gray-50 border-gray-200 text-gray-400'
                                 : u.accountStatus === 'ACTIVE'
@@ -455,7 +500,7 @@ export default function AdminDashboard() {
                             <button
                               disabled={actionLoading !== null}
                               onClick={() => handleToggleWalletStatus(u.walletNumber, u.walletStatus)}
-                              className={`px-3 py-1.5 rounded-btn text-xs font-bold border transition-colors inline-flex items-center gap-1 focus:outline-none ${
+                              className={`px-3 py-1.5 rounded-btn text-xs font-bold border transition-colors inline-flex items-center gap-1 focus:outline-none focus:ring-0 ${
                                 u.walletStatus === 'ACTIVE'
                                   ? 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-700'
                                   : 'bg-green-50 border-green-200 hover:bg-green-100 text-green-600'
@@ -644,6 +689,125 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* Tab 5: KYC Verification Panel */}
+        {activeTab === 'kyc' && (
+          <div className="bg-white border border-neutral-border rounded-card shadow-sm overflow-hidden">
+            {/* Filters bar */}
+            <div className="p-4 border-b border-neutral-border bg-neutral-light flex justify-between items-center">
+              <h3 className="text-sm font-bold text-text-primary flex items-center gap-1.5">
+                <FileText className="h-4 w-4 text-primary" /> Upgrade Requests Console
+              </h3>
+              <div className="flex gap-2">
+                {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setKycFilter(filter)}
+                    className={`px-3 py-1 rounded-btn text-xs font-bold border transition-colors ${
+                      kycFilter === filter
+                        ? 'bg-primary border-primary text-white shadow-sm'
+                        : 'bg-white border-neutral-border hover:bg-neutral-light text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    {filter === 'ALL' ? 'All' : filter.toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* KYC Requests Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-neutral-light border-b border-neutral-border text-xs font-semibold text-text-secondary uppercase">
+                    <th className="p-4">Applicant</th>
+                    <th className="p-4">Target Upgrade</th>
+                    <th className="p-4">Submitted Credentials</th>
+                    <th className="p-4">Submission Date</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Review Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-border text-sm">
+                  {filteredKycRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-400">No KYC upgrade requests found in this scope.</td>
+                    </tr>
+                  ) : (
+                    filteredKycRequests.map((req) => (
+                      <tr key={req.id} className="hover:bg-neutral-light/50 transition-colors">
+                        <td className="p-4">
+                          <p className="font-bold text-text-primary capitalize">{req.user.firstName} {req.user.lastName}</p>
+                          <p className="text-xs text-text-secondary">{req.user.email}</p>
+                        </td>
+                        <td className="p-4 font-semibold text-primary">
+                          {req.targetTier}
+                        </td>
+                        <td className="p-4 space-y-1">
+                          {req.targetTier === 'TIER_2' ? (
+                            <div className="text-xs text-text-secondary space-y-0.5">
+                              <p>BVN: <span className="font-mono font-semibold text-text-primary">{req.bvn}</span></p>
+                              <p>NIN: <span className="font-mono font-semibold text-text-primary">{req.nin}</span></p>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-text-secondary flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-primary" />
+                              <a
+                                href={req.documentUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary font-semibold hover:underline flex items-center space-x-0.5"
+                              >
+                                <span>Proof of Address.pdf</span>
+                              </a>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 text-xs text-text-secondary">
+                          {new Date(req.createdAt).toLocaleString('en-NG')}
+                        </td>
+                        <td className="p-4">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
+                            req.status === 'APPROVED' 
+                              ? 'bg-success/10 text-success' 
+                              : req.status === 'REJECTED'
+                                ? 'bg-red-50 text-red-600 border border-red-200'
+                                : 'bg-yellow-50 text-yellow-700 border border-yellow-200 animate-pulse'
+                          }`}>
+                            {req.status.toLowerCase()}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                          {req.status === 'PENDING' ? (
+                            <>
+                              <button
+                                disabled={actionLoading !== null}
+                                onClick={() => handleApproveKyc(req.id)}
+                                className="px-3 py-1.5 bg-success hover:bg-success-dark disabled:bg-neutral-border text-white text-xs font-bold rounded-btn transition-colors shadow-sm inline-flex items-center gap-1 focus:outline-none"
+                              >
+                                <FileCheck className="h-3.5 w-3.5" /> Approve
+                              </button>
+                              <button
+                                disabled={actionLoading !== null}
+                                onClick={() => handleRejectKyc(req.id)}
+                                className="px-3 py-1.5 bg-red-50 border border-red-200 hover:bg-red-100 disabled:bg-neutral-border text-red-600 text-xs font-bold rounded-btn transition-colors inline-flex items-center gap-1 focus:outline-none"
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-text-secondary italic">Reviewed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

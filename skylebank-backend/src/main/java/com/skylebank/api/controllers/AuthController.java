@@ -77,6 +77,8 @@ public class AuthController {
                 .firstName(principal.getFirstName())
                 .lastName(principal.getLastName())
                 .role(principal.getAuthorities().iterator().next().getAuthority())
+                .kycLevel((String) authData.get("kycLevel"))
+                .hasTransactionPin((Boolean) authData.get("hasTransactionPin"))
                 .build();
 
         return ResponseEntity.ok()
@@ -143,5 +145,24 @@ public class AuthController {
     public ResponseEntity<MessageResponse> verifyEmail(@RequestParam String token) {
         // Mocked response for auth UI integration
         return ResponseEntity.ok(new MessageResponse("Email verification successful"));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserProfileResponse> getCurrentUser(java.security.Principal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(401).build();
+        }
+        User user = authService.getUserByEmail(principal.getName());
+        UserProfileResponse profile = UserProfileResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .phoneNumber(user.getPhoneNumber())
+                .role(user.getRole().name())
+                .kycLevel(user.getKycLevel().name())
+                .hasTransactionPin(user.getTransactionPin() != null)
+                .build();
+        return ResponseEntity.ok(profile);
     }
 }

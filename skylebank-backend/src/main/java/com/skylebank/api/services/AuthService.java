@@ -150,6 +150,8 @@ public class AuthService {
         result.put("accessToken", accessToken);
         result.put("refreshToken", refreshToken.getToken());
         result.put("principal", userPrincipal);
+        result.put("kycLevel", user.getKycLevel().name());
+        result.put("hasTransactionPin", user.getTransactionPin() != null);
         return result;
     }
 
@@ -268,5 +270,10 @@ public class AuthService {
 
         // Revoke the token so it cannot be reused
         passwordResetTokenRepository.delete(resetToken);
+    }
+
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email));
     }
 }

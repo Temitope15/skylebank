@@ -4,6 +4,8 @@ export interface TransferRequest {
   targetWalletNumber: string;
   amount: number;
   description: string;
+  pin: string;
+  trustConfirmed?: boolean;
 }
 
 export interface TransferResponse {

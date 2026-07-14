@@ -70,6 +70,20 @@ public class User {
     @Builder.Default
     private UserStatus accountStatus = UserStatus.ACTIVE;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kyc_level", nullable = false)
+    @Builder.Default
+    private KycLevel kycLevel = KycLevel.TIER_1;
+
+    @Column(name = "bvn", length = 11)
+    private String bvn;
+
+    @Column(name = "nin", length = 11)
+    private String nin;
+
+    @Column(name = "transaction_pin", length = 100)
+    private String transactionPin;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

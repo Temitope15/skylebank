@@ -30,4 +30,10 @@ public class TransferRequest {
 
     @Size(max = 150, message = "Description cannot exceed 150 characters")
     private String description;
+
+    @NotBlank(message = "Transaction PIN is required")
+    @Pattern(regexp = "^\\d{4}$", message = "Transaction PIN must be exactly 4 digits")
+    private String pin;
+
+    private boolean trustConfirmed;
 }

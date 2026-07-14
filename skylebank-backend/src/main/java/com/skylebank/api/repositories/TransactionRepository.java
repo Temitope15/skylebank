@@ -23,6 +23,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     Optional<Transaction> findFirstBySourceWalletOrderByCreatedAtDesc(Wallet sourceWallet);
 
     long countBySourceWalletAndCreatedAtAfter(Wallet sourceWallet, java.time.LocalDateTime dateTime);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+            "WHERE t.sourceWallet = :wallet AND t.status = :status AND t.createdAt >= :after")
+    java.math.BigDecimal sumAmountBySourceWalletAndStatusAndCreatedAtAfter(
+            @org.springframework.data.repository.query.Param("wallet") Wallet wallet,
+            @org.springframework.data.repository.query.Param("status") com.skylebank.api.models.TransactionStatus status,
+            @org.springframework.data.repository.query.Param("after") java.time.LocalDateTime after);
+
+    @org.springframework.data.jpa.repository.Query("SELECT t.amount FROM Transaction t " +
+            "WHERE t.sourceWallet = :wallet AND t.status = :status ORDER BY t.createdAt DESC")
+    java.util.List<java.math.BigDecimal> findAmountsBySourceWalletAndStatusOrderByCreatedAtDesc(
+            @org.springframework.data.repository.query.Param("wallet") Wallet wallet,
+            @org.springframework.data.repository.query.Param("status") com.skylebank.api.models.TransactionStatus status,
+            org.springframework.data.domain.Pageable pageable);
 }
 
 
