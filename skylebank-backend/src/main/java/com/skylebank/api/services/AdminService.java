@@ -290,7 +290,7 @@ public class AdminService {
 
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                lockedSource.getUser(),
+                lockedSource.getUser().getEmail(),
                 "Debit Alert (Approved)",
                 "Your flagged transfer of ₦" + transaction.getAmount() + " to " + lockedTarget.getWalletNumber() + " has been approved and executed.",
                 true,
@@ -306,7 +306,7 @@ public class AdminService {
 
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                lockedTarget.getUser(),
+                lockedTarget.getUser().getEmail(),
                 "Credit Alert",
                 "Your wallet " + lockedTarget.getWalletNumber() + " has been credited with ₦" + transaction.getAmount() + " from " + lockedSource.getWalletNumber() + ".",
                 true,
@@ -345,7 +345,7 @@ public class AdminService {
         // Publish rejection alert to sender
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                transaction.getSourceWallet().getUser(),
+                transaction.getSourceWallet().getUser().getEmail(),
                 "Transfer Rejected",
                 "Your flagged transfer of ₦" + transaction.getAmount() + " to " + transaction.getTargetWallet().getWalletNumber() + " was rejected by compliance and has been cancelled.",
                 true,

@@ -104,7 +104,7 @@ public class AuthService {
         // Publish welcome notification event
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                savedUser,
+                savedUser.getEmail(),
                 "Welcome to SkyleBank!",
                 "Your account has been successfully created. Welcome to the future of digital banking!",
                 true,
@@ -258,7 +258,7 @@ public class AuthService {
         // Publish security alert notification event
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                user,
+                user.getEmail(),
                 "Security Alert: Password Changed",
                 "The password for your SkyleBank account was recently changed. If you did not make this change, please contact support immediately.",
                 true,

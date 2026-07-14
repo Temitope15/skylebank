@@ -118,7 +118,7 @@ public class TransferService {
             // Publish security alert notification event
             eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                     this,
-                    lockedSource.getUser(),
+                    lockedSource.getUser().getEmail(),
                     "Suspicious Transfer Flagged",
                     "A transfer of ₦" + request.getAmount() + " to wallet " + request.getTargetWalletNumber() + " was flagged as suspicious and is pending review.",
                     true,
@@ -168,7 +168,7 @@ public class TransferService {
 
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                lockedSource.getUser(),
+                lockedSource.getUser().getEmail(),
                 "Debit Alert",
                 "Your wallet " + lockedSource.getWalletNumber() + " has been debited with ₦" + transaction.getAmount() + " for a transfer to " + lockedTarget.getWalletNumber() + ".",
                 true,
@@ -184,7 +184,7 @@ public class TransferService {
 
         eventPublisher.publishEvent(new com.skylebank.api.events.NotificationEvent(
                 this,
-                lockedTarget.getUser(),
+                lockedTarget.getUser().getEmail(),
                 "Credit Alert",
                 "Your wallet " + lockedTarget.getWalletNumber() + " has been credited with ₦" + transaction.getAmount() + " from " + lockedSource.getWalletNumber() + ".",
                 true,
