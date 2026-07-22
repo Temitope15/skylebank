@@ -18,11 +18,14 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend.url:https://skylebank.vercel.app}")
+    private String frontendUrl;
+
     /**
      * Dispatch password reset link to user email.
      */
     public void sendPasswordResetEmail(String toEmail, String resetToken) {
-        String resetLink = "http://localhost:5173/reset-password?token=" + resetToken;
+        String resetLink = frontendUrl + "/reset-password?token=" + resetToken;
 
         try {
             SimpleMailMessage message = new SimpleMailMessage();
@@ -40,8 +43,7 @@ public class EmailService {
             mailSender.send(message);
             log.info("Password reset email sent successfully to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send password reset email to {}: {}", toEmail, e.getMessage());
-            throw new IllegalStateException("Unable to dispatch password reset email. Please verify MailHog is active.");
+            log.error("Failed to send password reset email to {}: {}. Token link: {}", toEmail, e.getMessage(), resetLink);
         }
     }
 
