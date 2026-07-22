@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppRoutes from './routes/AppRoutes';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
 // Create TanStack Query client for caching API server states
 const queryClient = new QueryClient({
@@ -16,6 +17,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppRoutes />
+      <PwaInstallPrompt />
     </QueryClientProvider>
   );
 }
